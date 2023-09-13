@@ -1,9 +1,28 @@
-import {View, Text, Button, StyleSheet} from 'react-native';
 import React, {useState, useEffect} from 'react';
 import MapView, {Marker, Polyline, PROVIDER_GOOGLE} from 'react-native-maps';
 import {decode} from '@mapbox/polyline';
+// import Geolocation from "react-native-geolocation-service";
+
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  PermissionsAndroid,
+  Platform,
+  Button,
+} from 'react-native';
+
+//import all the components we are going to use.
+import Geolocation from '@react-native-community/geolocation';
 
 const FieldUser = () => {
+  const [currentLatitude, setCurrentLatitude] = useState('31.470370945909085');
+  const [currentLongitude, setCurrentLongitude] = useState('74.23905619483946');
+
+  const [locationStatus, setLocationStatus] = useState('');
+
   const [coords, setCoords] = useState([]);
 
   const getDirections = async (startLoc, destinationLoc) => {
@@ -43,14 +62,110 @@ const FieldUser = () => {
   };
 
   function postLocation() {
-    // console.log('LATLNG: ' + region.latitude + '/' + region.longitude);
+    // getOneTimeLocation();
+    console.log('Current LATLNG: ' + region.latitude + '/' + region.longitude);
     getDirections(
-      region.latitude + ',' + region.longitude,
+      currentLatitude + ',' + currentLongitude,
       destination.latitude + ',' + destination.longitude,
     )
       .then(coords => setCoords(coords))
       .catch(err => console.log('Something went wrong'));
   }
+
+  useEffect(() => {
+    const requestLocationPermission = async () => {
+      if (Platform.OS === 'ios') {
+        getOneTimeLocation();
+        subscribeLocationLocation();
+      } else {
+        try {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Access Required',
+              message: 'This App needs to Access your location',
+            },
+          );
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            //To Check, If Permission is granted
+            getOneTimeLocation();
+            subscribeLocationLocation();
+          } else {
+            setLocationStatus('Permission Denied');
+          }
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+    };
+    requestLocationPermission();
+    return () => {
+      Geolocation.clearWatch(watchID);
+    };
+  }, []);
+
+  const getOneTimeLocation = () => {
+    setLocationStatus('Getting Location ...');
+    Geolocation.getCurrentPosition(
+      //Will give you the current location
+      position => {
+        setLocationStatus('You are Here');
+
+        //getting the Longitude from the location json
+        const currentLongitude = JSON.stringify(position.coords.longitude);
+
+        //getting the Latitude from the location json
+        const currentLatitude = JSON.stringify(position.coords.latitude);
+
+        console.log('MyLatLng: ' + currentLatitude + '/' + currentLongitude);
+
+        //Setting Longitude state
+        setCurrentLongitude(currentLongitude);
+
+        //Setting Longitude state
+        setCurrentLatitude(currentLatitude);
+      },
+      error => {
+        setLocationStatus(error.message);
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 30000,
+        maximumAge: 1000,
+      },
+    );
+  };
+
+  const subscribeLocationLocation = () => {
+    watchID = Geolocation.watchPosition(
+      position => {
+        //Will give you the location on location change
+
+        setLocationStatus('You are Here');
+        console.log(position);
+
+        //getting the Longitude from the location json
+        const currentLongitude = JSON.stringify(position.coords.longitude);
+
+        //getting the Latitude from the location json
+        const currentLatitude = JSON.stringify(position.coords.latitude);
+
+        console.log('MyLatLng: ' + currentLatitude + '/' + currentLongitude);
+        //Setting Longitude state
+        setCurrentLongitude(currentLongitude);
+
+        //Setting Latitude state
+        setCurrentLatitude(currentLatitude);
+      },
+      error => {
+        setLocationStatus(error.message);
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 1000,
+      },
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -63,7 +178,8 @@ const FieldUser = () => {
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
-        onRegionChangeComplete={region => setRegion(region)}>
+        // onRegionChangeComplete={region => setRegion(region)}
+      >
         {coords.length > 0 && (
           <Polyline
             coordinates={coords}
@@ -73,10 +189,17 @@ const FieldUser = () => {
           />
         )}
         <Marker coordinate={destination} pinColor="red" />
-        <Marker coordinate={region} pinColor="green" />
+        <Marker
+          coordinate={{
+            latitude: parseFloat(currentLatitude),
+            longitude: parseFloat(currentLongitude),
+          }}
+          pinColor="green"
+        />
       </MapView>
-      <View style={styles.bottomCon}>
-        <Button title="Post" onPress={() => postLocation()} />
+      <View>
+        <Button title="Refresh" onPress={() => getOneTimeLocation()} />
+        <Button title="Postt" onPress={() => postLocation()} />
       </View>
     </View>
   );
@@ -101,5 +224,16 @@ const styles = StyleSheet.create({
   bottomCon: {
     alignItems: 'center',
     marginVertical: 10,
+  },
+  TopCon: {
+    alignItems: 'flex-start',
+    marginHorizontal: 10,
+    marginTop: 10,
+  },
+  boldText: {
+    fontSize: 25,
+    color: 'red',
+    marginVertical: 16,
+    textAlign: 'center',
   },
 });
