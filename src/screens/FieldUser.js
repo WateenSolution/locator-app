@@ -1,6 +1,9 @@
 import React, {useState, useEffect} from 'react';
 import MapView, {Marker, Polyline, PROVIDER_GOOGLE} from 'react-native-maps';
 import {decode} from '@mapbox/polyline';
+import DeviceInfo from 'react-native-device-info';
+import axios from 'axios';
+
 // import Geolocation from "react-native-geolocation-service";
 
 import {
@@ -18,8 +21,10 @@ import {
 import Geolocation from '@react-native-community/geolocation';
 
 const FieldUser = () => {
-  const [currentLatitude, setCurrentLatitude] = useState('31.470370945909085');
-  const [currentLongitude, setCurrentLongitude] = useState('74.23905619483946');
+  const [deviceid, setDeviceID] = useState('');
+
+  const [currentLatitude, setCurrentLatitude] = useState('0.0');
+  const [currentLongitude, setCurrentLongitude] = useState('0.0');
 
   const [locationStatus, setLocationStatus] = useState('');
 
@@ -47,13 +52,6 @@ const FieldUser = () => {
     }
   };
 
-  const [region, setRegion] = useState({
-    latitude: 31.480130472084344,
-    longitude: 74.36051899484,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  });
-
   const destination = {
     latitude: 31.470370945909085,
     longitude: 74.23905619483946,
@@ -61,18 +59,64 @@ const FieldUser = () => {
     longitudeDelta: 0.0421,
   };
 
-  function postLocation() {
-    // getOneTimeLocation();
-    console.log('Current LATLNG: ' + region.latitude + '/' + region.longitude);
-    getDirections(
-      currentLatitude + ',' + currentLongitude,
-      destination.latitude + ',' + destination.longitude,
-    )
-      .then(coords => setCoords(coords))
-      .catch(err => console.log('Something went wrong'));
+  // async function postLocation2(deviceid, lat, lng) {
+  //   console.log('postLocation2 called');
+
+  //   try {
+  //     const response = await axios.post(`http://172.29.24.141:3000/post`, {
+  //       id: deviceid,
+  //       lat: lat,
+  //       longs: lng,
+  //     });
+
+  //     if (response.status === 201) {
+  //       alert(` You have created: ${JSON.stringify(response.data)}`);
+  //       setIsLoading(false);
+  //       setFullName("");
+  //       setEmail("");
+  //     } else {
+  //       throw new Error("An error has occurred");
+  //     }
+  //   } catch (error) {
+  //     alert("An error has occurred");
+  //     setIsLoading(false);
+  //   }
+
+  // }
+  async function postLocation(deviceid, lat, lng) {
+    console.log('postLocation called');
+
+    const bodyParameters = {
+      deviceID: deviceid,
+      latitude: lat,
+      longitude: lng,
+    };
+    try {
+      const res = await axios.post(
+        'https://wateen.tutorialsbites.com/api/add_location', // 'http://172.26.50.18:8000/api/add_location',
+        bodyParameters,
+      );
+      console.log('success', res);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  function postHandler() {
+    if (currentLatitude !== '0.0') {
+      postLocation(deviceid, currentLatitude, currentLongitude);
+    } else {
+      console.log('postHandler: location null');
+      setLocationStatus('Turn on GPS');
+    }
   }
 
   useEffect(() => {
+    var uniqueid = DeviceInfo.getDeviceId();
+    setDeviceID(uniqueid);
+
+    console.log('DeviceID: ' + deviceid);
+
     const requestLocationPermission = async () => {
       if (Platform.OS === 'ios') {
         getOneTimeLocation();
@@ -104,19 +148,31 @@ const FieldUser = () => {
     };
   }, []);
 
+  // //draw polyline when current location found
+  // useEffect(() => {
+  //   if (currentLatitude) {
+  //     getDirections(
+  //       currentLatitude + ',' + currentLongitude,
+  //       destination.latitude + ',' + destination.longitude,
+  //     )
+  //       .then(coords => setCoords(coords))
+  //       .catch(err => console.log('Something went wrong'));
+  //   } else {
+  //     console.log('location null' + currentLatitude);
+  //   }
+  // }, [currentLatitude, currentLongitude]);
+
   const getOneTimeLocation = () => {
     setLocationStatus('Getting Location ...');
     Geolocation.getCurrentPosition(
       //Will give you the current location
       position => {
-        setLocationStatus('You are Here');
-
         //getting the Longitude from the location json
         const currentLongitude = JSON.stringify(position.coords.longitude);
 
         //getting the Latitude from the location json
         const currentLatitude = JSON.stringify(position.coords.latitude);
-
+        setLocationStatus(currentLatitude + '/' + currentLongitude);
         console.log('MyLatLng: ' + currentLatitude + '/' + currentLongitude);
 
         //Setting Longitude state
@@ -141,15 +197,13 @@ const FieldUser = () => {
       position => {
         //Will give you the location on location change
 
-        setLocationStatus('You are Here');
-        console.log(position);
-
         //getting the Longitude from the location json
         const currentLongitude = JSON.stringify(position.coords.longitude);
 
         //getting the Latitude from the location json
         const currentLatitude = JSON.stringify(position.coords.latitude);
 
+        setLocationStatus(currentLatitude + '/' + currentLongitude);
         console.log('MyLatLng: ' + currentLatitude + '/' + currentLongitude);
         //Setting Longitude state
         setCurrentLongitude(currentLongitude);
@@ -170,6 +224,7 @@ const FieldUser = () => {
   return (
     <View style={styles.container}>
       <MapView
+        provider={PROVIDER_GOOGLE}
         style={styles.map}
         //specify our coordinates.
         initialRegion={{
@@ -178,6 +233,7 @@ const FieldUser = () => {
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
+        showsUserLocation={true}
         // onRegionChangeComplete={region => setRegion(region)}
       >
         {coords.length > 0 && (
@@ -188,18 +244,27 @@ const FieldUser = () => {
             // lineDashPattern={[1]}
           />
         )}
-        <Marker coordinate={destination} pinColor="red" />
-        <Marker
+        {/* <Marker coordinate={destination} pinColor="red" /> */}
+
+        {/* <Marker
           coordinate={{
             latitude: parseFloat(currentLatitude),
             longitude: parseFloat(currentLongitude),
           }}
           pinColor="green"
-        />
+        /> */}
       </MapView>
+
+      <View style={styles.buttonsBar}>
+        {/* <View style={styles.buttons}>
+          <Button title="Refresh" onPress={() => getOneTimeLocation()} />
+        </View> */}
+        <View style={styles.buttons}>
+          <Button title="Post" onPress={() => postHandler()} />
+        </View>
+      </View>
       <View>
-        <Button title="Refresh" onPress={() => getOneTimeLocation()} />
-        <Button title="Postt" onPress={() => postLocation()} />
+        <Text style={styles.boldText}>{locationStatus}</Text>
       </View>
     </View>
   );
@@ -235,5 +300,15 @@ const styles = StyleSheet.create({
     color: 'red',
     marginVertical: 16,
     textAlign: 'center',
+  },
+  buttonsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  buttons: {
+    backgroundColor: 'green',
+    width: '40%',
+    height: 40,
+    margin: 10,
   },
 });
