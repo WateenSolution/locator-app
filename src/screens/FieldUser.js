@@ -1,91 +1,28 @@
-import React, {useState, useEffect} from 'react';
-import MapView, {Marker, Polyline, PROVIDER_GOOGLE} from 'react-native-maps';
-import {decode} from '@mapbox/polyline';
-import DeviceInfo from 'react-native-device-info';
-import axios from 'axios';
-
-// import Geolocation from "react-native-geolocation-service";
-
-import {
-  SafeAreaView,
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  PermissionsAndroid,
-  Platform,
-  Button,
-} from 'react-native';
-
 //import all the components we are going to use.
 import Geolocation from '@react-native-community/geolocation';
+import axios from 'axios';
+import React, {useEffect, useRef, useState} from 'react';
+// import Geolocation from "react-native-geolocation-service";
+import {
+  Alert,
+  Button,
+  PermissionsAndroid,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import DeviceInfo from 'react-native-device-info';
+import MapView, {PROVIDER_GOOGLE} from 'react-native-maps';
 
 const FieldUser = () => {
   const [deviceid, setDeviceID] = useState('');
 
   const [currentLatitude, setCurrentLatitude] = useState('0.0');
   const [currentLongitude, setCurrentLongitude] = useState('0.0');
-
   const [locationStatus, setLocationStatus] = useState('');
-
-  const [coords, setCoords] = useState([]);
-
-  const getDirections = async (startLoc, destinationLoc) => {
-    try {
-      const KEY = 'AIzaSyADmYFvUDRaZ41fLRiCGhMPOcbNgNMHsHc'; //put your API key here.
-      //otherwise, you'll have an 'unauthorized' error.
-      let resp = await fetch(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${startLoc}&destination=${destinationLoc}&key=${KEY}`,
-      );
-      let respJson = await resp.json();
-      let points = decode(respJson.routes[0].overview_polyline.points);
-      //   console.log(points);
-      let coords = points.map((point, index) => {
-        return {
-          latitude: point[0],
-          longitude: point[1],
-        };
-      });
-      return coords;
-    } catch (error) {
-      return error;
-    }
-  };
-
-  const destination = {
-    latitude: 31.470370945909085,
-    longitude: 74.23905619483946,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  };
-
-  // async function postLocation2(deviceid, lat, lng) {
-  //   console.log('postLocation2 called');
-
-  //   try {
-  //     const response = await axios.post(`http://172.29.24.141:3000/post`, {
-  //       id: deviceid,
-  //       lat: lat,
-  //       longs: lng,
-  //     });
-
-  //     if (response.status === 201) {
-  //       alert(` You have created: ${JSON.stringify(response.data)}`);
-  //       setIsLoading(false);
-  //       setFullName("");
-  //       setEmail("");
-  //     } else {
-  //       throw new Error("An error has occurred");
-  //     }
-  //   } catch (error) {
-  //     alert("An error has occurred");
-  //     setIsLoading(false);
-  //   }
-
-  // }
+  const mapRef = useRef(null);
   async function postLocation(deviceid, lat, lng) {
-    console.log('postLocation called');
-
     const bodyParameters = {
       deviceID: deviceid,
       latitude: lat,
@@ -96,7 +33,9 @@ const FieldUser = () => {
         'https://wateen.tutorialsbites.com/api/add_location', // 'http://172.26.50.18:8000/api/add_location',
         bodyParameters,
       );
-      console.log('success', res);
+      if (res) {
+        Alert.alert('Success', 'Your Location Posted Successfully');
+      }
     } catch (error) {
       console.log(error);
     }
@@ -115,12 +54,9 @@ const FieldUser = () => {
     var uniqueid = DeviceInfo.getDeviceId();
     setDeviceID(uniqueid);
 
-    console.log('DeviceID: ' + deviceid);
-
     const requestLocationPermission = async () => {
       if (Platform.OS === 'ios') {
         getOneTimeLocation();
-        subscribeLocationLocation();
       } else {
         try {
           const granted = await PermissionsAndroid.request(
@@ -133,7 +69,6 @@ const FieldUser = () => {
           if (granted === PermissionsAndroid.RESULTS.GRANTED) {
             //To Check, If Permission is granted
             getOneTimeLocation();
-            subscribeLocationLocation();
           } else {
             setLocationStatus('Permission Denied');
           }
@@ -144,23 +79,9 @@ const FieldUser = () => {
     };
     requestLocationPermission();
     return () => {
-      Geolocation.clearWatch(watchID);
+      Geolocation.clearWatch();
     };
   }, []);
-
-  // //draw polyline when current location found
-  // useEffect(() => {
-  //   if (currentLatitude) {
-  //     getDirections(
-  //       currentLatitude + ',' + currentLongitude,
-  //       destination.latitude + ',' + destination.longitude,
-  //     )
-  //       .then(coords => setCoords(coords))
-  //       .catch(err => console.log('Something went wrong'));
-  //   } else {
-  //     console.log('location null' + currentLatitude);
-  //   }
-  // }, [currentLatitude, currentLongitude]);
 
   const getOneTimeLocation = () => {
     setLocationStatus('Getting Location ...');
@@ -169,6 +90,12 @@ const FieldUser = () => {
       position => {
         //getting the Longitude from the location json
         const currentLongitude = JSON.stringify(position.coords.longitude);
+        mapRef?.current?.animateToRegion({
+          latitude: position?.coords.latitude,
+          longitude: position?.coords.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        });
 
         //getting the Latitude from the location json
         const currentLatitude = JSON.stringify(position.coords.latitude);
@@ -192,38 +119,11 @@ const FieldUser = () => {
     );
   };
 
-  const subscribeLocationLocation = () => {
-    watchID = Geolocation.watchPosition(
-      position => {
-        //Will give you the location on location change
-
-        //getting the Longitude from the location json
-        const currentLongitude = JSON.stringify(position.coords.longitude);
-
-        //getting the Latitude from the location json
-        const currentLatitude = JSON.stringify(position.coords.latitude);
-
-        setLocationStatus(currentLatitude + '/' + currentLongitude);
-        console.log('MyLatLng: ' + currentLatitude + '/' + currentLongitude);
-        //Setting Longitude state
-        setCurrentLongitude(currentLongitude);
-
-        //Setting Latitude state
-        setCurrentLatitude(currentLatitude);
-      },
-      error => {
-        setLocationStatus(error.message);
-      },
-      {
-        enableHighAccuracy: false,
-        maximumAge: 1000,
-      },
-    );
-  };
-
   return (
     <View style={styles.container}>
       <MapView
+        zoomEnabled
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         //specify our coordinates.
@@ -235,30 +135,12 @@ const FieldUser = () => {
         }}
         showsUserLocation={true}
         // onRegionChangeComplete={region => setRegion(region)}
-      >
-        {coords.length > 0 && (
-          <Polyline
-            coordinates={coords}
-            strokeColor={'#000'}
-            strokeWidth={6}
-            // lineDashPattern={[1]}
-          />
-        )}
-        {/* <Marker coordinate={destination} pinColor="red" /> */}
-
-        {/* <Marker
-          coordinate={{
-            latitude: parseFloat(currentLatitude),
-            longitude: parseFloat(currentLongitude),
-          }}
-          pinColor="green"
-        /> */}
-      </MapView>
+      ></MapView>
 
       <View style={styles.buttonsBar}>
-        {/* <View style={styles.buttons}>
+        <View style={styles.buttons}>
           <Button title="Refresh" onPress={() => getOneTimeLocation()} />
-        </View> */}
+        </View>
         <View style={styles.buttons}>
           <Button title="Post" onPress={() => postHandler()} />
         </View>
